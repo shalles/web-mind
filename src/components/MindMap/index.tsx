@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
 import styled from 'styled-components';
 import useMindMapStore from '@/store';
-import Node from './Node';
 import Connection from './Connection';
+import RelationshipLine from './RelationshipLine';
 import Toolbar from '../Toolbar';
+import { addDebugNode } from '@/core/operations/node-operations';
 
 // 声明SVG相关类型
 type SVGPoint = {
@@ -39,6 +40,25 @@ const ToolbarWrapper = styled.div`
   z-index: 100;
 `;
 
+// 调试按钮
+const DebugButton = styled.button`
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  background-color: #ff4d4f;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  z-index: 100;
+  
+  &:hover {
+    background-color: #ff7875;
+  }
+`;
+
 const MindMap: React.FC = () => {
   // 状态管理
   const { 
@@ -47,7 +67,9 @@ const MindMap: React.FC = () => {
     setSelectedNodeIds,
     zoom,
     setZoom,
-    initialize 
+    initialize,
+    relationships,
+    setNodes
   } = useMindMapStore();
   
   // SVG容器引用
@@ -56,13 +78,28 @@ const MindMap: React.FC = () => {
   // 本地状态
   const [viewBox, setViewBox] = useState({ x: -500, y: -300, width: 1000, height: 600 });
   const [dragStart, setDragStart] = useState<SVGPoint | null>(null);
+  const [debugMode, setDebugMode] = useState(false);
   
   // 初始化思维导图
   useEffect(() => {
     if (nodes.length === 0) {
+      console.log('MindMap组件：初始化节点');
       initialize();
+    } else {
+      console.log('MindMap组件：节点已存在', nodes.length);
     }
   }, [nodes.length, initialize]);
+  
+  // 添加测试节点的函数（仅供调试使用）
+  const handleAddDebugNode = () => {
+    console.log('手动添加调试节点');
+    setNodes(addDebugNode(nodes));
+  };
+  
+  // 切换调试模式
+  const toggleDebugMode = () => {
+    setDebugMode(!debugMode);
+  };
   
   // 转换客户端坐标到SVG坐标
   const clientToSVGPoint = (clientX: number, clientY: number): SVGPoint => {
@@ -182,16 +219,100 @@ const MindMap: React.FC = () => {
     return result;
   };
   
+  // 渲染自定义关系连线
+  const renderRelationships = () => {
+    return relationships.map(relationship => {
+      const sourceNode = nodes.find(n => n.id === relationship.sourceId);
+      const targetNode = nodes.find(n => n.id === relationship.targetId);
+      
+      if (sourceNode && targetNode && sourceNode.position && targetNode.position) {
+        return (
+          <RelationshipLine
+            key={`rel-${relationship.id}`}
+            relationship={relationship}
+            sourceNode={sourceNode}
+            targetNode={targetNode}
+          />
+        );
+      }
+      
+      return null;
+    });
+  };
+  
   // 渲染节点
   const renderNodes = () => {
-    return nodes.map(node => (
-      <Node
-        key={node.id}
-        node={node}
-        isSelected={selectedNodeIds.includes(node.id)}
-        onClick={(e) => handleNodeClick(node.id, e)}
-      />
-    ));
+    console.log('renderNodes被调用，节点数量:', nodes.length);
+    if (nodes.length === 0) {
+      console.log('无节点可渲染');
+      return [];
+    }
+    
+    return nodes.map(node => {
+      if (!node || !node.id) {
+        console.log('发现无效节点:', node);
+        return null;
+      }
+      
+      // 使用SVG绘制节点，而不是DOM元素
+      const x = node.position?.x || 0;
+      const y = node.position?.y || 0;
+      const width = node.style.width || 120;
+      const height = node.style.height || 40;
+      
+      // 节点样式
+      const backgroundColor = node.style.backgroundColor || '#ffffff';
+      const borderColor = selectedNodeIds.includes(node.id) ? '#1890ff' : (node.isReference ? '#722ed1' : (node.style.borderColor || '#cccccc'));
+      const borderWidth = node.style.borderWidth || 1;
+      
+      console.log('渲染节点:', node.id, node.content, 'position:', x, y);
+      
+      return (
+        <g 
+          key={node.id} 
+          transform={`translate(${x}, ${y})`}
+          onClick={(e) => handleNodeClick(node.id, e)}
+          style={{ cursor: 'pointer' }}
+        >
+          {/* 节点背景 */}
+          <rect
+            x={-width/2}
+            y={-height/2}
+            width={width}
+            height={height}
+            fill={backgroundColor}
+            stroke={borderColor}
+            strokeWidth={borderWidth + 1}
+            rx={5}
+            ry={5}
+          />
+          
+          {/* 节点内容 */}
+          <text
+            x={0}
+            y={0}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fontSize={node.style.fontSize || 14}
+            fontWeight={node.style.fontWeight || 'normal'}
+            fill={node.style.fontColor || '#333333'}
+          >
+            {node.content}
+          </text>
+          
+          {/* 调试信息 */}
+          <text
+            x={0}
+            y={height/2 + 15}
+            textAnchor="middle"
+            fontSize={10}
+            fill="#999"
+          >
+            ID: {node.id.substring(0, 6)}...
+          </text>
+        </g>
+      );
+    });
   };
   
   return (
@@ -212,9 +333,25 @@ const MindMap: React.FC = () => {
       >
         <g transform={`scale(${zoom})`}>
           {renderConnections()}
+          {renderRelationships()}
           {renderNodes()}
         </g>
       </MindMapSVG>
+      
+      {/* 调试按钮 */}
+      <DebugButton onClick={toggleDebugMode}>
+        {debugMode ? '关闭调试' : '开启调试'}
+      </DebugButton>
+      
+      {/* 调试模式下显示添加节点按钮 */}
+      {debugMode && (
+        <DebugButton 
+          onClick={handleAddDebugNode}
+          style={{ bottom: '60px' }}
+        >
+          添加测试节点
+        </DebugButton>
+      )}
     </SVGContainer>
   );
 };

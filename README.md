@@ -1,85 +1,96 @@
-# WebXmind 思维导图工具
+# WebXmind - 网页版思维导图工具
 
-基于 React + TypeScript + Vite 的在线思维导图工具，具有丰富的功能和良好的用户体验。
+基于React + TypeScript + Vite + Zustand开发的思维导图工具，支持节点编辑、样式调整、关系连线和节点引用等功能。
 
-## 主要功能
+## 功能
 
-- 基础节点操作：创建、删除、编辑、移动
-- 多级节点支持：无限层级的树状结构
-- 节点样式自定义：颜色、大小、字体等
-- 连接线样式：多种连接线类型和样式
-- 撤销/重做功能：操作历史管理
-- 导出功能：导出为 PNG 图片
-- 缩放和平移：灵活的视图控制
-- 键盘快捷键：提高操作效率
+基础功能：
+- 节点的添加、删除、编辑
+- 左右布局支持
+- 节点展开/折叠
+- 缩放和平移
+- 撤销/重做
+- 导出PNG图片
 
-## 快捷键
-
-- `Tab`：添加子节点
-- `Shift + Tab`：添加兄弟节点
-- `Delete`：删除节点
-- `F2`：编辑节点
-- `Ctrl + Z`：撤销
-- `Ctrl + Y`：重做
-- `Ctrl + +`：放大
-- `Ctrl + -`：缩小
+新增功能：
+- 节点备注：支持为节点添加备注信息
+- 节点图标：支持为节点添加各种图标
+- 节点图片：支持为节点添加图片
+- 关系连线：支持在任意两个节点之间创建自定义关系连线，可设置线条样式和添加关系描述
+- 节点引用：支持节点引用功能，一个节点可在不同位置被引用
 
 ## 技术栈
 
-- **React 18**：用户界面构建
-- **TypeScript**：类型安全的 JavaScript
-- **Vite**：快速的构建工具
-- **Zustand**：简单、高效的状态管理
-- **Styled Components**：组件样式管理
-- **Ant Design**：UI 组件库
-- **HTML5 Canvas/SVG**：图形渲染
+- React 
+- TypeScript
+- Vite
+- Ant Design
+- Styled Components
+- Zustand (状态管理)
+- HTML5 Canvas (导出功能)
+
+## 开发指南
+
+### 安装依赖
+
+```bash
+npm install
+```
+
+### 启动开发服务器
+
+```bash
+npm run dev
+```
+
+### 构建生产版本
+
+```bash
+npm run build
+```
 
 ## 项目结构
 
 ```
 src/
-  ├── components/       # UI组件
-  │   ├── MindMap/      # 思维导图主组件
-  │   ├── Toolbar/      # 工具栏
-  │   └── ...
-  ├── core/             # 核心逻辑
-  │   ├── models/       # 数据模型
-  │   ├── layouts/      # 布局算法
-  │   └── operations/   # 操作处理
-  ├── store/            # 状态管理
-  ├── styles/           # 全局样式
-  ├── types/            # 类型定义
-  ├── utils/            # 工具函数
-  └── ...
+├─ components/     # 组件
+│  ├─ MindMap/     # 思维导图相关组件
+│  │  ├─ index.tsx         # 主组件
+│  │  ├─ Node.tsx          # 节点组件 
+│  │  ├─ Connection.tsx    # 连接线组件
+│  │  ├─ RelationshipLine.tsx  # 关系连线组件
+│  │  └─ NodeMenu.tsx      # 节点菜单组件
+│  ├─ Toolbar/     # 工具栏组件
+│  └─ Sidebar/     # 侧边栏组件
+├─ core/           # 核心逻辑
+│  ├─ models/      # 数据模型
+│  ├─ operations/  # 操作函数
+│  └─ layouts/     # 布局算法
+├─ store/          # 状态管理
+├─ types/          # 类型定义
+└─ styles/         # 全局样式
 ```
 
-## 如何使用
+## 快捷键
 
-1. 克隆仓库
-   ```bash
-   git clone https://github.com/your-username/webxmind.git
-   cd webxmind
-   ```
+- Tab: 添加子节点
+- Shift+Tab: 添加兄弟节点
+- Delete/Backspace: 删除节点
+- F2: 编辑节点
+- Ctrl+Z: 撤销
+- Ctrl+Y/Ctrl+Shift+Z: 重做
+- Ctrl++: 放大
+- Ctrl+-: 缩小
 
-2. 安装依赖
-   ```bash
-   npm install
-   ```
+## 下一步计划
 
-3. 启动开发服务器
-   ```bash
-   npm run dev
-   ```
-
-4. 打开浏览器访问 `http://localhost:5173/`
-
-## 后续开发计划
-
-- 实现协作编辑功能
-- 增加更多导出格式（PDF、SVG等）
-- 支持自定义主题
-- 增加模板库
-- 添加更多节点类型（图片、链接等）
+- 优化布局算法
+- 添加主题支持
+- 增加多画布管理
+- 添加协作功能
+- 云端存储支持
+- 添加更多导出格式
+- 移动端适配
 
 ## 许可证
 

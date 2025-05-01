@@ -1,5 +1,5 @@
 import { MindNode } from '@/types/mindmap';
-import { createNode } from '../models/mindmap';
+import { createNode } from '@/core/models/mindmap';
 
 export class NodeOperations {
   private undoStack: MindNode[][] = [];
@@ -77,6 +77,24 @@ export class NodeOperations {
   }
 }
 
+// 查找节点
+export const findNodeById = (nodes: MindNode[], id: string): MindNode | null => {
+  for (const node of nodes) {
+    if (node.id === id) {
+      return node;
+    }
+    
+    if (node.children.length > 0) {
+      const foundNode = findNodeById(node.children, id);
+      if (foundNode) {
+        return foundNode;
+      }
+    }
+  }
+  
+  return null;
+};
+
 // 添加子节点
 export const addChildNode = (
   nodes: MindNode[],
@@ -93,6 +111,55 @@ export const addChildNode = (
     
     parentNode.children.push(newNode);
     parentNode.expanded = true; // 确保父节点展开
+    
+    // 将新节点添加到扁平数组
+    updatedNodes.push(newNode);
+  }
+  
+  return updatedNodes;
+};
+
+// 添加一个调试用的节点，直接添加到根节点下
+export const addDebugNode = (nodes: MindNode[]): MindNode[] => {
+  // 创建一个新的节点数组，避免直接修改原数组
+  const updatedNodes = [...nodes];
+  
+  // 找到根节点(level = 0)
+  const rootNode = updatedNodes.find(node => node.level === 0);
+  
+  if (rootNode) {
+    // 创建一个调试节点
+    const debugNode = createNode('调试节点 ' + new Date().toLocaleTimeString(), rootNode.id, 1, 'right');
+    
+    // 设置明显的样式
+    debugNode.style = {
+      ...debugNode.style,
+      backgroundColor: '#ff4d4f',
+      borderColor: '#ff1f1f',
+      fontColor: '#ffffff',
+      fontWeight: 'bold'
+    };
+    
+    // 设置位置（确保在根节点右侧显示）
+    const rootX = rootNode.position?.x || 0;
+    const rootY = rootNode.position?.y || 0;
+    
+    // 为调试节点设置一个固定位置，避免叠加
+    debugNode.position = {
+      x: rootX + 200,
+      y: rootY + (Math.random() * 100 - 50) // 随机上下偏移，避免节点重叠
+    };
+    
+    // 添加到根节点的子节点中
+    rootNode.children.push(debugNode);
+    rootNode.expanded = true;
+    
+    // 添加到扁平数组
+    updatedNodes.push(debugNode);
+    
+    console.log('调试节点已添加:', debugNode.id, '位置:', debugNode.position);
+  } else {
+    console.log('未找到根节点，无法添加调试节点');
   }
   
   return updatedNodes;
@@ -125,6 +192,9 @@ export const addSiblingNodeFunc = (
       } else {
         parentNode.children.push(newNode);
       }
+      
+      // 添加到扁平数组
+      updatedNodes.push(newNode);
     }
   }
   
@@ -212,22 +282,4 @@ export const toggleNodeExpandedFunc = (
   }
   
   return updatedNodes;
-};
-
-// 查找节点
-export const findNodeById = (nodes: MindNode[], id: string): MindNode | null => {
-  for (const node of nodes) {
-    if (node.id === id) {
-      return node;
-    }
-    
-    if (node.children.length > 0) {
-      const foundNode = findNodeById(node.children, id);
-      if (foundNode) {
-        return foundNode;
-      }
-    }
-  }
-  
-  return null;
 };
