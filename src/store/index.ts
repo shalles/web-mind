@@ -31,6 +31,7 @@ export interface MindMapState {
     nodes: MindNode[];
     relationships: Relationship[];
   }[];
+  isAddingNode: boolean; // 添加节点操作状态标志
   
   // 节点操作
   setNodes: (nodes: MindNode[]) => void;
@@ -59,7 +60,7 @@ export interface MindMapState {
   updateNodeNote: (nodeId: string, note: string) => void;
   updateNodeIcon: (nodeId: string, icon: NodeIcon | undefined) => void;
   updateNodeImage: (nodeId: string, image: NodeImage | undefined) => void;
-  createNodeReference: (sourceNodeId: string, targetLocation: string) => void;
+  createNodeReference: (sourceNodeId: string, targetParentId: string) => void;
   
   // 关系连线操作
   addRelationship: (sourceId: string, targetId: string, label?: string) => void;
@@ -96,6 +97,7 @@ const useMindMapStore = create<MindMapState>((set, get) => ({
   relationships: [],
   undoStack: [],
   redoStack: [],
+  isAddingNode: false,
   
   // 基础状态设置
   setNodes: (nodes) => set({ nodes }),
@@ -133,18 +135,52 @@ const useMindMapStore = create<MindMapState>((set, get) => ({
   
   // 添加子节点
   addChildNode: (parentId, content = '新节点') => {
-    get().executeWithHistory(({ nodes, relationships }) => ({
-      nodes: addChildNode(nodes, parentId, content),
-      relationships
-    }));
+    const state = get();
+    
+    // 检查是否有正在进行的添加操作
+    if (state.isAddingNode) {
+      console.log('检测到正在进行的节点添加操作，跳过');
+      return;
+    }
+    
+    // 设置添加操作标志
+    set({ isAddingNode: true });
+    
+    // 使用延时执行操作
+    setTimeout(() => {
+      get().executeWithHistory(({ nodes, relationships }) => ({
+        nodes: addChildNode(nodes, parentId, content),
+        relationships
+      }));
+      
+      // 重置标志
+      set({ isAddingNode: false });
+    }, 50);
   },
   
   // 添加兄弟节点
   addSiblingNode: (siblingId, content = '新节点') => {
-    get().executeWithHistory(({ nodes, relationships }) => ({
-      nodes: addSiblingNodeFunc(nodes, siblingId, content),
-      relationships
-    }));
+    const state = get();
+    
+    // 检查是否有正在进行的添加操作
+    if (state.isAddingNode) {
+      console.log('检测到正在进行的节点添加操作，跳过');
+      return;
+    }
+    
+    // 设置添加操作标志
+    set({ isAddingNode: true });
+    
+    // 使用延时执行操作
+    setTimeout(() => {
+      get().executeWithHistory(({ nodes, relationships }) => ({
+        nodes: addSiblingNodeFunc(nodes, siblingId, content),
+        relationships
+      }));
+      
+      // 重置标志
+      set({ isAddingNode: false });
+    }, 50);
   },
   
   // 删除节点
@@ -245,7 +281,7 @@ const useMindMapStore = create<MindMapState>((set, get) => ({
   },
   
   // 创建节点引用
-  createNodeReference: (sourceNodeId, targetParentId) => {
+  createNodeReference: (sourceNodeId: string, targetParentId: string) => {
     get().executeWithHistory(({ nodes, relationships }) => {
       const sourceNode = findNodeById(nodes, sourceNodeId);
       if (!sourceNode) return { nodes, relationships };
@@ -255,7 +291,7 @@ const useMindMapStore = create<MindMapState>((set, get) => ({
       
       // 创建引用节点
       const referenceNode: MindNode = {
-        ...sourceNode,
+        ...JSON.parse(JSON.stringify(sourceNode)), // 深拷贝源节点
         id: uuidv4(), // 新ID
         parent: targetParentId,
         refId: sourceNodeId, // 指向源节点
@@ -263,19 +299,37 @@ const useMindMapStore = create<MindMapState>((set, get) => ({
         children: [] // 引用节点初始不包含子节点
       };
       
-      // 计算新节点的插入位置
-      const updatedNodes = [...nodes];
+      // 为引用节点设置一个与原节点稍微不同的位置，避免完全重叠
+      if (targetParent.position) {
+        const parentX = targetParent.position.x;
+        const parentY = targetParent.position.y;
+        
+        // 根据方向设置位置，确保在父节点右侧或左侧显示
+        const direction = targetParent.direction || 'right';
+        const xOffset = direction === 'right' ? 150 : -150;
+        
+        referenceNode.position = {
+          x: parentX + xOffset,
+          y: parentY + targetParent.children.length * 50 // 根据子节点数量确定垂直位置
+        };
+      }
       
       // 更新父节点的children数组
-      const parentIndex = updatedNodes.findIndex(node => node.id === targetParentId);
+      const parentIndex = nodes.findIndex(node => node.id === targetParentId);
       if (parentIndex !== -1) {
-        updatedNodes[parentIndex].children.push(referenceNode);
+        nodes[parentIndex].children.push(referenceNode);
+        nodes[parentIndex].expanded = true; // 确保父节点展开
       }
       
       // 添加引用节点到数组
-      updatedNodes.push(referenceNode);
+      const updatedNodes = [...nodes, referenceNode];
       
-      return { nodes: updatedNodes, relationships };
+      console.log('已创建引用节点:', referenceNode.id, '引用源:', sourceNodeId);
+      
+      return { 
+        nodes: updatedNodes, 
+        relationships 
+      };
     });
   },
   
