@@ -1,0 +1,57 @@
+@charset "utf-8";
+/* 思维导图节点样式 */
+
+/* 吸附目标节点样式 */
+.snap-target {
+  animation: pulse 1.5s infinite;
+}
+
+/* 拖拽中的节点样式 */
+.dragging-node {
+  cursor: grabbing !important;
+  opacity: 0.8;
+}
+
+/* 拖拽节点时的光晕效果 */
+@keyframes pulse {
+  0% {
+    filter: drop-shadow(0 0 0px rgba(82, 196, 26, 0.7));
+  }
+  50% {
+    filter: drop-shadow(0 0 10px rgba(82, 196, 26, 0.7));
+  }
+  100% {
+    filter: drop-shadow(0 0 0px rgba(82, 196, 26, 0.7));
+  }
+}
+
+/* 吸附指示器动画效果 */
+.snap-indicator {
+  animation: blink 1.2s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0.3;
+  }
+}
+
+/* 拖拽轨迹线 */
+.drag-path {
+  stroke: #1890ff;
+  stroke-width: 1.5;
+  stroke-dasharray: 5, 5;
+  opacity: 0.5;
+}
+
+/* 连接线悬浮效果 */
+.connection-line:hover {
+  stroke-width: 2.5;
+  filter: drop-shadow(0 0 3px rgba(24, 144, 255, 0.5));
+} 

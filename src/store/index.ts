@@ -50,6 +50,9 @@ export interface MindMapState {
     relationships: Relationship[];
   }) => void;
   
+  // 布局操作
+  calculateAndUpdateLayout: () => void;
+  
   // 高级节点操作
   addChildNode: (parentId: string, content?: string) => void;
   addSiblingNode: (siblingId: string, content?: string) => void;
@@ -452,6 +455,32 @@ const useMindMapStore = create<MindMapState>((set, get) => ({
     console.log('初始化思维导图成功');
     console.log('节点数量:', flatNodes.length);
     console.log('根节点:', layoutedRoot);
+  },
+  
+  // 布局操作
+  calculateAndUpdateLayout: () => {
+    const { nodes } = get();
+    console.log('重新计算思维导图布局...');
+    
+    // 查找根节点
+    const rootNode = findNodeById(nodes, nodes.find(n => n.level === 0)?.id || '');
+    if (!rootNode) {
+      console.error('无法找到根节点，布局计算失败');
+      return;
+    }
+    
+    console.log('找到根节点:', rootNode.id, rootNode.content);
+    
+    // 执行布局计算（保持思维导图的原始形状）
+    const layoutedRoot = calculateMindMapLayout(rootNode);
+    
+    // 将树状结构展平为节点数组
+    const flatNodes = flattenNodes(layoutedRoot);
+    
+    console.log('布局计算完成，更新节点数量:', flatNodes.length);
+    
+    // 更新状态
+    set({ nodes: flatNodes });
   }
 }));
 
