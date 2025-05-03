@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 背景圆 -->
+  <circle cx="100" cy="100" r="90" fill="#1890ff" />
+  
+  <!-- 思维导图节点连线 -->
+  <path d="M100 100 L160 70" stroke="white" stroke-width="4" />
+  <path d="M100 100 L170 110" stroke="white" stroke-width="4" />
+  <path d="M100 100 L140 150" stroke="white" stroke-width="4" />
+  <path d="M100 100 L40 70" stroke="white" stroke-width="4" />
+  <path d="M100 100 L30 110" stroke="white" stroke-width="4" />
+  <path d="M100 100 L60 150" stroke="white" stroke-width="4" />
+  
+  <!-- 中心节点 -->
+  <circle cx="100" cy="100" r="15" fill="white" />
+  
+  <!-- 外部节点 -->
+  <circle cx="160" cy="70" r="8" fill="white" />
+  <circle cx="170" cy="110" r="8" fill="white" />
+  <circle cx="140" cy="150" r="8" fill="white" />
+  <circle cx="40" cy="70" r="8" fill="white" />
+  <circle cx="30" cy="110" r="8" fill="white" />
+  <circle cx="60" cy="150" r="8" fill="white" />
+  
+  <!-- 字母W -->
+  <path d="M88 95 L83 105 L78 95 L73 105 L68 95" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+  
+  <!-- 字母X -->
+  <path d="M93 95 L103 105 M93 105 L103 95" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+</svg> 

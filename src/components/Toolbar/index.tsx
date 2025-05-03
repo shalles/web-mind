@@ -13,13 +13,12 @@ import {
   FontColorsOutlined,
   NodeIndexOutlined,
   SaveOutlined,
-  PictureOutlined,
-  ImportOutlined,
   FileOutlined,
   SnippetsOutlined,
   AppstoreOutlined,
   ExclamationCircleOutlined
 } from '@ant-design/icons';
+import { FileImageOutlined, ImportOutlined } from '@ant-design/icons';
 import useMindMapStore from '@/store';
 import { findNodeById } from '@/core/operations/node-operations';
 import html2canvas from 'html2canvas';
@@ -38,6 +37,15 @@ const ToolbarContainer = styled.div`
 const ToolbarGroup = styled.div`
   display: flex;
   align-items: center;
+`;
+
+// 强调按钮样式
+const HighlightedButton = styled(Button)`
+  color: #1890ff;
+  font-size: 18px;
+  &:hover {
+    color: #40a9ff;
+  }
 `;
 
 const Toolbar: React.FC = () => {
@@ -499,10 +507,10 @@ const Toolbar: React.FC = () => {
               <SaveOutlined /> 保存
             </MenuItem>
             <MenuItem onClick={handleExportJSON}>
-              <SnippetsOutlined /> 导出JSON
+              <SnippetsOutlined style={{ fontSize: '16px', color: '#1890ff' }} /> 导出JSON
             </MenuItem>
             <MenuItem onClick={handleImportClick}>
-              <ImportOutlined /> 导入JSON
+              <ImportOutlined style={{ fontSize: '16px', color: '#1890ff' }} /> 导入JSON
             </MenuItem>
             <MenuItem onClick={() => {
               setNewTemplateModalVisible(true);
@@ -604,7 +612,7 @@ const Toolbar: React.FC = () => {
       
       <ToolbarGroup>
         <Tooltip title="导出为图片">
-          <Button type="text" icon={<PictureOutlined />} onClick={handleExport} />
+          <HighlightedButton type="text" icon={<FileImageOutlined />} onClick={handleExport} />
         </Tooltip>
         <input
           type="file"

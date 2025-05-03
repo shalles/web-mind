@@ -5,6 +5,7 @@ import zhCN from 'antd/locale/zh_CN';
 import { GlobalStyle } from './styles/global';
 import MindMap from './components/MindMap';
 import useMindMapStore from './store';
+import logo from './assets/webxmind-logo.svg';
 
 const AppContainer = styled.div`
   width: 100vw;
@@ -23,6 +24,11 @@ const Header = styled.header`
   padding: 0 20px;
   font-size: 18px;
   font-weight: bold;
+`;
+
+const Logo = styled.img`
+  height: 36px;
+  margin-right: 10px;
 `;
 
 const MainContent = styled.main`
@@ -57,7 +63,10 @@ const App: React.FC = () => {
     >
       <GlobalStyle />
       <AppContainer>
-        <Header>WebXmind 网页思维导图</Header>
+        <Header>
+          <Logo src={logo} alt="WebXmind Logo" />
+          WebXmind 网页思维导图
+        </Header>
         <MainContent>
           <MindMap />
         </MainContent>
