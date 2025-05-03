@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { MindNode, NodeStyle, ConnectionStyle, NodeIcon, NodeImage, Relationship } from '@/types/mindmap';
-import { createInitialMindMap, flattenNodes } from '@/core/models/mindmap';
+import { createInitialMindMap, flattenNodes, createNode } from '@/core/models/mindmap';
 import { calculateMindMapLayout } from '@/core/layouts/mindmap-layout';
 import {
   addChildNode,
@@ -12,6 +12,335 @@ import {
   findNodeById
 } from '@/core/operations/node-operations';
 import { v4 as uuidv4 } from 'uuid';
+
+// IndexedDB数据库名和版本
+const DB_NAME = 'mindmapDB';
+const DB_VERSION = 1;
+const STORE_NAME = 'mindmaps';
+const CURRENT_MAP_KEY = 'currentMap';
+const TEMPLATES_STORE = 'templates';
+
+// 打开IndexedDB连接
+const openDB = (): Promise<IDBDatabase> => {
+  return new Promise((resolve, reject) => {
+    const request = window.indexedDB.open(DB_NAME, DB_VERSION);
+    
+    request.onerror = (event) => {
+      console.error('IndexedDB打开失败:', event);
+      reject(new Error('无法打开IndexedDB数据库'));
+    };
+    
+    request.onsuccess = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      resolve(db);
+    };
+    
+    request.onupgradeneeded = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      
+      // 创建思维导图存储
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+        console.log(`创建存储: ${STORE_NAME}`);
+      }
+      
+      // 创建模板存储
+      if (!db.objectStoreNames.contains(TEMPLATES_STORE)) {
+        db.createObjectStore(TEMPLATES_STORE, { keyPath: 'id' });
+        console.log(`创建存储: ${TEMPLATES_STORE}`);
+      }
+    };
+  });
+};
+
+// 保存思维导图到IndexedDB
+const saveMindMapToDB = async (id: string, data: { nodes: MindNode[], relationships: Relationship[] }): Promise<void> => {
+  try {
+    const db = await openDB();
+    const transaction = db.transaction(STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(STORE_NAME);
+    
+    // 保存思维导图数据
+    await new Promise<void>((resolve, reject) => {
+      const request = store.put({
+        id,
+        ...data,
+        updatedAt: new Date().toISOString()
+      });
+      
+      request.onsuccess = () => resolve();
+      request.onerror = (event) => reject(event);
+    });
+    
+    // 设置为当前思维导图
+    await new Promise<void>((resolve, reject) => {
+      const settingsTransaction = db.transaction(STORE_NAME, 'readwrite');
+      const settingsStore = settingsTransaction.objectStore(STORE_NAME);
+      const request = settingsStore.put({
+        id: CURRENT_MAP_KEY,
+        currentMapId: id,
+        updatedAt: new Date().toISOString()
+      });
+      
+      request.onsuccess = () => resolve();
+      request.onerror = (event) => reject(event);
+    });
+    
+    console.log(`思维导图 ${id} 已保存到IndexedDB`);
+  } catch (error) {
+    console.error('保存思维导图失败:', error);
+  }
+};
+
+// 从IndexedDB加载思维导图
+const loadMindMapFromDB = async (id: string): Promise<{ nodes: MindNode[], relationships: Relationship[] } | null> => {
+  try {
+    const db = await openDB();
+    const transaction = db.transaction(STORE_NAME, 'readonly');
+    const store = transaction.objectStore(STORE_NAME);
+    
+    return new Promise((resolve, reject) => {
+      const request = store.get(id);
+      
+      request.onsuccess = () => {
+        if (request.result) {
+          const { nodes, relationships } = request.result;
+          resolve({ nodes, relationships });
+        } else {
+          resolve(null);
+        }
+      };
+      
+      request.onerror = (event) => reject(event);
+    });
+  } catch (error) {
+    console.error('加载思维导图失败:', error);
+    return null;
+  }
+};
+
+// 加载当前思维导图ID
+const loadCurrentMapId = async (): Promise<string | null> => {
+  try {
+    const db = await openDB();
+    const transaction = db.transaction(STORE_NAME, 'readonly');
+    const store = transaction.objectStore(STORE_NAME);
+    
+    return new Promise((resolve, reject) => {
+      const request = store.get(CURRENT_MAP_KEY);
+      
+      request.onsuccess = () => {
+        if (request.result && request.result.currentMapId) {
+          resolve(request.result.currentMapId);
+        } else {
+          resolve(null);
+        }
+      };
+      
+      request.onerror = (event) => reject(event);
+    });
+  } catch (error) {
+    console.error('加载当前思维导图ID失败:', error);
+    return null;
+  }
+};
+
+// 保存模板到IndexedDB
+const saveTemplateToDb = async (template: { id: string, name: string, nodes: MindNode[], relationships: Relationship[] }): Promise<void> => {
+  let db: IDBDatabase | null = null;
+  
+  try {
+    console.log('打开IndexedDB以保存模板...');
+    db = await openDB();
+    
+    // 创建一个独立的事务
+    console.log('创建写入事务...');
+    const transaction = db.transaction(TEMPLATES_STORE, 'readwrite');
+    
+    // 为事务设置处理程序
+    transaction.oncomplete = () => {
+      console.log('模板保存事务完成:', template.id);
+    };
+    
+    transaction.onerror = (event) => {
+      console.error('模板保存事务错误:', event);
+    };
+    
+    transaction.onabort = (event) => {
+      console.error('模板保存事务中止:', event);
+    };
+    
+    // 获取对象存储
+    const store = transaction.objectStore(TEMPLATES_STORE);
+    
+    console.log('准备将模板写入数据库:', template.id);
+    
+    // 执行写入操作并等待事务完成
+    return new Promise((resolve, reject) => {
+      const templateData = {
+        ...template,
+        createdAt: new Date().toISOString()
+      };
+      
+      console.log('写入模板数据:', templateData);
+      const request = store.put(templateData);
+      
+      request.onsuccess = () => {
+        console.log('模板数据写入请求成功:', template.id);
+      };
+      
+      request.onerror = (event) => {
+        console.error('写入模板数据失败:', event);
+        reject(new Error('写入模板数据失败'));
+      };
+      
+      // 使用事务完成事件来确定是否成功
+      transaction.oncomplete = () => {
+        console.log('保存模板事务完成:', template.id);
+        resolve();
+      };
+      
+      transaction.onerror = (event) => {
+        console.error('保存模板事务发生错误:', event);
+        reject(new Error('保存模板事务发生错误'));
+      };
+      
+      transaction.onabort = (event) => {
+        console.error('保存模板事务被中止:', event);
+        reject(new Error('保存模板事务被中止'));
+      };
+    });
+  } catch (error) {
+    console.error('保存模板过程中发生错误:', error);
+    if (db) db.close();
+    throw error;
+  }
+};
+
+// 加载所有模板
+const loadTemplates = async (): Promise<{ id: string, name: string, nodes: MindNode[], relationships: Relationship[] }[]> => {
+  let db: IDBDatabase | null = null;
+  
+  try {
+    console.log('打开IndexedDB以加载模板列表...');
+    db = await openDB();
+    
+    // 创建一个只读事务
+    console.log('创建读取事务...');
+    const transaction = db.transaction(TEMPLATES_STORE, 'readonly');
+    
+    // 获取对象存储
+    const store = transaction.objectStore(TEMPLATES_STORE);
+    
+    return new Promise((resolve, reject) => {
+      console.log('执行getAll操作...');
+      const request = store.getAll();
+      
+      request.onsuccess = () => {
+        const templates = request.result || [];
+        console.log(`成功加载${templates.length}个模板`);
+        templates.forEach(template => {
+          console.log(`- 模板: ${template.name}, ID: ${template.id}`);
+        });
+        resolve(templates);
+      };
+      
+      request.onerror = (event) => {
+        console.error('加载模板列表失败:', event);
+        reject(new Error('加载模板列表失败'));
+      };
+      
+      // 设置事务完成、错误和中止的处理程序
+      transaction.oncomplete = () => {
+        console.log('加载模板列表事务完成');
+      };
+      
+      transaction.onerror = (event) => {
+        console.error('加载模板列表事务出错:', event);
+      };
+      
+      transaction.onabort = (event) => {
+        console.error('加载模板列表事务被中止:', event);
+      };
+    });
+  } catch (error) {
+    console.error('加载模板列表过程中发生错误:', error);
+    if (db) db.close();
+    return [];
+  }
+};
+
+// 从IndexedDB中删除模板
+const deleteTemplateFromDb = async (templateId: string): Promise<boolean> => {
+  let db: IDBDatabase | null = null;
+  
+  try {
+    console.log('打开IndexedDB以删除模板...');
+    db = await openDB();
+    
+    // 不允许删除默认模板
+    if (templateId === 'default-example-template') {
+      console.error('不能删除默认示例模板');
+      return false;
+    }
+    
+    // 创建一个写入事务
+    console.log('创建删除事务...');
+    const transaction = db.transaction(TEMPLATES_STORE, 'readwrite');
+    
+    // 获取对象存储
+    const store = transaction.objectStore(TEMPLATES_STORE);
+    
+    return new Promise((resolve, reject) => {
+      // 先检查模板是否存在
+      const checkRequest = store.get(templateId);
+      
+      checkRequest.onsuccess = () => {
+        if (!checkRequest.result) {
+          console.error('要删除的模板不存在:', templateId);
+          resolve(false);
+          return;
+        }
+        
+        // 模板存在，执行删除
+        console.log('执行删除操作...');
+        const deleteRequest = store.delete(templateId);
+        
+        deleteRequest.onsuccess = () => {
+          console.log('模板删除成功:', templateId);
+          resolve(true);
+        };
+        
+        deleteRequest.onerror = (event) => {
+          console.error('删除模板失败:', event);
+          reject(new Error('删除模板失败'));
+        };
+      };
+      
+      checkRequest.onerror = (event) => {
+        console.error('检查模板是否存在失败:', event);
+        reject(new Error('检查模板是否存在失败'));
+      };
+      
+      // 设置事务完成、错误和中止的处理程序
+      transaction.oncomplete = () => {
+        console.log('删除模板事务完成');
+      };
+      
+      transaction.onerror = (event) => {
+        console.error('删除模板事务出错:', event);
+      };
+      
+      transaction.onabort = (event) => {
+        console.error('删除模板事务被中止:', event);
+      };
+    });
+  } catch (error) {
+    console.error('删除模板过程中发生错误:', error);
+    if (db) db.close();
+    return false;
+  }
+};
 
 export interface MindMapState {
   // 数据状态
@@ -32,6 +361,7 @@ export interface MindMapState {
     relationships: Relationship[];
   }[];
   isAddingNode: boolean; // 添加节点操作状态标志
+  currentMapId: string; // 当前思维导图ID
   
   // 节点操作
   setNodes: (nodes: MindNode[]) => void;
@@ -81,6 +411,19 @@ export interface MindMapState {
   // 导入
   importFromJSON: (jsonString: string) => boolean;
   
+  // 本地存储
+  saveToLocalStorage: () => Promise<void>;
+  loadFromLocalStorage: () => Promise<boolean>;
+  createNewMindMap: () => boolean;
+  createEmptyMindMap: () => boolean;
+  
+  // 模板功能
+  saveAsTemplate: (name: string) => Promise<string>;
+  loadTemplates: () => Promise<{ id: string, name: string }[]>;
+  createFromTemplate: (templateId: string) => Promise<boolean>;
+  createDefaultTemplates: () => Promise<void>;
+  deleteTemplate: (templateId: string) => Promise<boolean>;
+  
   // 初始化
   initialize: () => void;
 }
@@ -104,6 +447,7 @@ const useMindMapStore = create<MindMapState>((set, get) => ({
   undoStack: [],
   redoStack: [],
   isAddingNode: false,
+  currentMapId: uuidv4(), // 默认生成一个新的思维导图ID
   
   // 基础状态设置
   setNodes: (nodes) => set({ nodes }),
@@ -136,6 +480,11 @@ const useMindMapStore = create<MindMapState>((set, get) => ({
       const layoutedRoot = calculateMindMapLayout(rootNode);
       const flatNodes = flattenNodes(layoutedRoot);
       set({ nodes: flatNodes });
+      
+      // 自动保存到本地存储
+      setTimeout(() => {
+        get().saveToLocalStorage();
+      }, 100); // 短暂延迟，避免频繁保存
     }
   },
   
@@ -477,20 +826,276 @@ const useMindMapStore = create<MindMapState>((set, get) => ({
     return '';
   },
   
+  // 本地存储相关方法
+  saveToLocalStorage: async () => {
+    const { nodes, relationships, currentMapId } = get();
+    await saveMindMapToDB(currentMapId, { nodes, relationships });
+  },
+  
+  loadFromLocalStorage: async () => {
+    try {
+      // 先尝试加载当前思维导图ID
+      const currentId = await loadCurrentMapId();
+      if (!currentId) {
+        console.log('没有找到当前思维导图ID，使用默认思维导图');
+        return false;
+      }
+      
+      // 加载思维导图数据
+      const mapData = await loadMindMapFromDB(currentId);
+      if (!mapData) {
+        console.log('没有找到思维导图数据，使用默认思维导图');
+        return false;
+      }
+      
+      // 更新状态
+      set({ 
+        nodes: mapData.nodes, 
+        relationships: mapData.relationships,
+        currentMapId: currentId,
+        undoStack: [],
+        redoStack: []
+      });
+      
+      console.log(`已从IndexedDB加载思维导图: ${currentId}`);
+      return true;
+    } catch (error) {
+      console.error('从本地存储加载失败:', error);
+      return false;
+    }
+  },
+  
+  // 创建新的思维导图
+  createNewMindMap: () => {
+    try {
+      console.log('开始创建示例思维导图...');
+      const newMapId = uuidv4();
+      const initialRoot = createInitialMindMap();
+      const layoutedRoot = calculateMindMapLayout(initialRoot);
+      const flatNodes = flattenNodes(layoutedRoot);
+      
+      console.log('示例思维导图创建完成，节点数量:', flatNodes.length);
+      
+      set({ 
+        nodes: flatNodes,
+        relationships: [],
+        undoStack: [],
+        redoStack: [],
+        currentMapId: newMapId,
+        selectedNodeIds: []
+      });
+      
+      // 自动保存到IndexedDB
+      setTimeout(() => {
+        get().saveToLocalStorage();
+      }, 100);
+      
+      console.log('示例思维导图已保存, ID:', newMapId);
+      return true;
+    } catch (error) {
+      console.error('创建示例思维导图失败:', error);
+      return false;
+    }
+  },
+  
+  // 创建只有一个中心主题的新思维导图
+  createEmptyMindMap: () => {
+    try {
+      console.log('开始创建空白思维导图...');
+      const newMapId = uuidv4();
+      
+      // 创建只有一个根节点的思维导图
+      const rootNode = createNode('中心主题', undefined, 0);
+      rootNode.children = []; // 确保没有子节点
+      
+      // 计算布局
+      const layoutedRoot = calculateMindMapLayout(rootNode);
+      const flatNodes = flattenNodes(layoutedRoot);
+      
+      console.log('空白思维导图创建完成，节点数量:', flatNodes.length);
+      console.log('根节点ID:', rootNode.id);
+      
+      // 更新状态
+      set({ 
+        nodes: flatNodes,
+        relationships: [],
+        undoStack: [],
+        redoStack: [],
+        currentMapId: newMapId,
+        selectedNodeIds: [rootNode.id] // 默认选中根节点
+      });
+      
+      // 自动保存到IndexedDB
+      setTimeout(() => {
+        get().saveToLocalStorage();
+      }, 100);
+      
+      console.log('空白思维导图已保存, ID:', newMapId);
+      return true;
+    } catch (error) {
+      console.error('创建空白思维导图失败:', error);
+      return false;
+    }
+  },
+  
+  // 保存为模板
+  saveAsTemplate: async (name: string) => {
+    try {
+      console.log('开始保存模板:', name);
+      const { nodes, relationships } = get();
+      const templateId = uuidv4();
+      
+      console.log('准备保存的模板数据:', {
+        id: templateId,
+        name,
+        nodesCount: nodes.length,
+        relationshipsCount: relationships.length
+      });
+      
+      // 保存模板数据
+      await saveTemplateToDb({
+        id: templateId,
+        name,
+        nodes,
+        relationships
+      });
+      
+      console.log(`模板保存成功: ${name}，ID: ${templateId}`);
+      return templateId;
+    } catch (error) {
+      console.error('保存模板失败:', error);
+      throw error; // 向上传递错误
+    }
+  },
+  
+  // 加载所有模板
+  loadTemplates: async () => {
+    try {
+      const templates = await loadTemplates();
+      return templates.map(({ id, name }) => ({ id, name }));
+    } catch (error) {
+      console.error('加载模板列表失败:', error);
+      return [];
+    }
+  },
+  
+  // 从模板创建思维导图
+  createFromTemplate: async (templateId: string) => {
+    try {
+      const db = await openDB();
+      const transaction = db.transaction(TEMPLATES_STORE, 'readonly');
+      const store = transaction.objectStore(TEMPLATES_STORE);
+      
+      return new Promise((resolve, reject) => {
+        const request = store.get(templateId);
+        
+        request.onsuccess = () => {
+          if (request.result) {
+            const { nodes, relationships } = request.result;
+            const newMapId = uuidv4();
+            
+            set({ 
+              nodes, 
+              relationships,
+              currentMapId: newMapId,
+              undoStack: [],
+              redoStack: [],
+              selectedNodeIds: []
+            });
+            
+            // 自动保存到IndexedDB
+            get().saveToLocalStorage();
+            console.log(`已从模板创建思维导图:`, templateId);
+            resolve(true);
+          } else {
+            console.error('未找到指定模板:', templateId);
+            resolve(false);
+          }
+        };
+        
+        request.onerror = (event) => {
+          console.error('从模板创建思维导图失败:', event);
+          reject(event);
+        };
+      });
+    } catch (error) {
+      console.error('从模板创建思维导图失败:', error);
+      return false;
+    }
+  },
+  
+  // 创建默认模板
+  createDefaultTemplates: async () => {
+    try {
+      const db = await openDB();
+      const transaction = db.transaction(TEMPLATES_STORE, 'readonly');
+      const store = transaction.objectStore(TEMPLATES_STORE);
+      
+      // 检查是否已存在默认模板
+      const defaultTemplateId = 'default-example-template';
+      const request = store.get(defaultTemplateId);
+      
+      return new Promise<void>((resolve) => {
+        request.onsuccess = async () => {
+          if (!request.result) {
+            console.log('创建默认示例模板...');
+            
+            // 创建示例思维导图作为默认模板
+            const initialRoot = createInitialMindMap();
+            const layoutedRoot = calculateMindMapLayout(initialRoot);
+            const flatNodes = flattenNodes(layoutedRoot);
+            
+            // 保存为默认模板
+            await saveTemplateToDb({
+              id: defaultTemplateId,
+              name: '示例思维导图',
+              nodes: flatNodes,
+              relationships: []
+            });
+            
+            console.log('默认示例模板创建完成');
+          } else {
+            console.log('默认示例模板已存在');
+          }
+          resolve();
+        };
+        
+        request.onerror = (event) => {
+          console.error('检查默认模板失败:', event);
+          resolve();
+        };
+      });
+    } catch (error) {
+      console.error('创建默认模板失败:', error);
+    }
+  },
+  
   // 初始化思维导图
-  initialize: () => {
-    const initialRoot = createInitialMindMap();
-    const layoutedRoot = calculateMindMapLayout(initialRoot);
-    const flatNodes = flattenNodes(layoutedRoot);
-    set({ 
-      nodes: flatNodes,
-      relationships: []
-    });
+  initialize: async () => {
+    console.log('正在初始化思维导图...');
     
-    // 打印调试信息
-    console.log('初始化思维导图成功');
-    console.log('节点数量:', flatNodes.length);
-    console.log('根节点:', layoutedRoot);
+    // 创建默认模板
+    await get().createDefaultTemplates();
+    
+    // 尝试从本地存储加载
+    const loadSuccess = await get().loadFromLocalStorage();
+    
+    // 如果加载失败，创建新的思维导图
+    if (!loadSuccess) {
+      const initialRoot = createInitialMindMap();
+      const layoutedRoot = calculateMindMapLayout(initialRoot);
+      const flatNodes = flattenNodes(layoutedRoot);
+      
+      set({ 
+        nodes: flatNodes,
+        relationships: []
+      });
+      
+      // 自动保存到本地存储
+      await get().saveToLocalStorage();
+    }
+    
+    console.log('思维导图初始化成功');
   },
   
   // 布局操作
@@ -517,6 +1122,16 @@ const useMindMapStore = create<MindMapState>((set, get) => ({
     
     // 更新状态
     set({ nodes: flatNodes });
+  },
+  
+  // 删除模板
+  deleteTemplate: async (templateId: string): Promise<boolean> => {
+    try {
+      return await deleteTemplateFromDb(templateId);
+    } catch (error) {
+      console.error('删除模板失败:', error);
+      return false;
+    }
   }
 }));
 
