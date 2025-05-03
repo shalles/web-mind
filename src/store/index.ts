@@ -78,6 +78,9 @@ export interface MindMapState {
   exportToJSON: () => string;
   exportToImage: () => string;
   
+  // 导入
+  importFromJSON: (jsonString: string) => boolean;
+  
   // 初始化
   initialize: () => void;
 }
@@ -432,6 +435,39 @@ const useMindMapStore = create<MindMapState>((set, get) => ({
   exportToJSON: () => {
     const { nodes, relationships } = get();
     return JSON.stringify({ nodes, relationships });
+  },
+  
+  // 导入JSON数据
+  importFromJSON: (jsonString: string) => {
+    try {
+      const data = JSON.parse(jsonString);
+      
+      // 验证数据格式
+      if (!data.nodes || !Array.isArray(data.nodes)) {
+        console.error('无效的JSON格式: 缺少nodes数组');
+        return false;
+      }
+      
+      // 导入数据
+      set({ 
+        nodes: data.nodes, 
+        relationships: data.relationships || [],
+        undoStack: [],
+        redoStack: []
+      });
+      
+      // 重新计算布局
+      get().calculateAndUpdateLayout();
+      
+      console.log('成功导入思维导图数据');
+      console.log('节点数量:', data.nodes.length);
+      console.log('关系数量:', (data.relationships || []).length);
+      
+      return true;
+    } catch (error) {
+      console.error('导入JSON失败:', error);
+      return false;
+    }
   },
   
   // 导出为图片

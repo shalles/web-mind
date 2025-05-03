@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import styled from 'styled-components';
 import { Button, Tooltip, Divider, message, ColorPicker } from 'antd';
 import {
@@ -12,7 +12,9 @@ import {
   DownloadOutlined,
   BgColorsOutlined,
   FontColorsOutlined,
-  NodeIndexOutlined
+  NodeIndexOutlined,
+  SaveOutlined,
+  UploadOutlined
 } from '@ant-design/icons';
 import useMindMapStore from '@/store';
 import { findNodeById } from '@/core/operations/node-operations';
@@ -47,8 +49,12 @@ const Toolbar: React.FC = () => {
     undo, 
     redo,
     setZoom,
-    zoom
+    zoom,
+    exportToJSON,
+    importFromJSON
   } = useMindMapStore();
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const hasSelection = selectedNodeIds.length > 0;
   const hasSingleSelection = selectedNodeIds.length === 1;
@@ -159,6 +165,59 @@ const Toolbar: React.FC = () => {
       console.error('导出失败:', err);
       message.error({ content: '导出失败，请重试', key: 'export' });
     }
+  };
+  
+  // 导出思维导图为JSON
+  const handleExportJSON = () => {
+    const jsonData = exportToJSON();
+    
+    // 创建下载链接
+    const blob = new Blob([jsonData], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.download = `mindmap-export-${new Date().toISOString().slice(0, 10)}.json`;
+    link.href = url;
+    link.click();
+    
+    // 释放URL对象
+    URL.revokeObjectURL(url);
+    
+    message.success('思维导图已导出为JSON文件');
+  };
+  
+  // 触发文件选择对话框
+  const handleImportClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+  
+  // 处理文件导入
+  const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      if (content) {
+        const success = importFromJSON(content);
+        if (success) {
+          message.success('思维导图已成功导入');
+        } else {
+          message.error('导入失败，文件格式不正确');
+        }
+      }
+      
+      // 重置文件输入，以便可以再次选择同一个文件
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    };
+    reader.onerror = () => {
+      message.error('读取文件失败');
+    };
+    reader.readAsText(file);
   };
   
   // 修改节点背景色
@@ -345,6 +404,19 @@ const Toolbar: React.FC = () => {
         <Tooltip title="导出为图片">
           <Button type="text" icon={<DownloadOutlined />} onClick={handleExport} />
         </Tooltip>
+        <Tooltip title="导出为JSON">
+          <Button type="text" icon={<SaveOutlined />} onClick={handleExportJSON} />
+        </Tooltip>
+        <Tooltip title="导入JSON文件">
+          <Button type="text" icon={<UploadOutlined />} onClick={handleImportClick} />
+        </Tooltip>
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileImport}
+          accept=".json"
+          style={{ display: 'none' }}
+        />
       </ToolbarGroup>
     </ToolbarContainer>
   );
