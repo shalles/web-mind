@@ -23,6 +23,9 @@ declare global {
   interface Window {
     tabKeyHandled?: boolean;
     shiftTabKeyHandled?: boolean;
+    keyEventHandled?: boolean;
+    logKeyboardEvent?: (source: string, event: KeyboardEvent, handled?: boolean) => void;
+    debugShortcuts?: boolean;
   }
 }
 
@@ -153,7 +156,7 @@ const MindMap: React.FC = () => {
   const editInputRef = useRef<InputRef>(null);
   
   // 键盘事件处理函数引用
-  const keydownHandlerRef = useRef<(e: KeyboardEvent) => void>();
+  const keydownHandlerRef = useRef<(e: KeyboardEvent) => void>(() => {});
   
   // 添加拖拽相关状态
   const [draggingState, setDraggingState] = useState<DraggingState>(() => ({
@@ -426,30 +429,91 @@ const MindMap: React.FC = () => {
     
     // 创建新的处理函数
     keydownHandlerRef.current = (e: KeyboardEvent) => {
+      // 记录键盘事件
+      if (window.logKeyboardEvent) {
+        window.logKeyboardEvent('MindMap', e, window.keyEventHandled);
+      }
+      
+      // 详细快捷键调试
+      if (window.debugShortcuts) {
+        const isModKey = e.ctrlKey;
+        if (isModKey) {
+          console.log(`快捷键调试[MindMap] - 检测到修饰键+${e.key}组合`, {
+            isMac: /Mac|iPod|iPhone|iPad/.test(navigator.platform),
+            isModifierKey: isModKey,
+            key: e.key,
+            keyLower: e.key.toLowerCase(),
+            handled: window.keyEventHandled,
+            activeElement: document.activeElement?.tagName,
+            editingNode: useMindMapStore.getState().editingNodeId !== null
+          });
+        }
+      }
+      
+      // 如果事件已被其他组件处理，则跳过
+      if (window.keyEventHandled === true) {
+        console.log('MindMap组件：事件已被处理，跳过');
+        return;
+      }
+      
       const { editingNodeId } = useMindMapStore.getState();
       
       // 如果正在编辑或正在处理中，跳过全局快捷键
-      if (editingNodeId || isProcessingKeyDown) return;
+      if (editingNodeId || isProcessingKeyDown) {
+        return;
+      }
+      
+      // 检测Ctrl键组合的文件操作快捷键
+      const isModifierKeyPressed = e.ctrlKey;
+      if (isModifierKeyPressed && ['n', 'o', 't', 'p', 'm', 'b', 'c', 's', '+', '=', '-', 'z', 'y'].includes(e.key.toLowerCase())) {
+        console.log('MindMap组件：跳过文件操作修饰键快捷键', e.key);
+        
+        // 详细调试
+        if (window.debugShortcuts) {
+          console.log(`快捷键调试[MindMap] - 跳过处理修饰键+${e.key}组合（交由Toolbar处理）`);
+        }
+        return;
+      }
       
       // 防止重复处理
       isProcessingKeyDown = true;
       
+      // 只处理节点内容编辑相关的快捷键
+      
       // 删除节点 (Delete/Backspace)
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNodeIds.length > 0) {
-        e.preventDefault();
-        selectedNodeIds.forEach(id => deleteNodeThrottled(id));
+        const activeElement = document.activeElement;
+        if (activeElement?.tagName !== 'INPUT' && activeElement?.tagName !== 'TEXTAREA') {
+          e.preventDefault();
+          window.keyEventHandled = true;
+          console.log('MindMap组件: 处理Delete键');
+          selectedNodeIds.forEach(id => deleteNodeThrottled(id));
+        }
       }
       
       // Tab键添加子节点
-      if (e.key === 'Tab' && !e.shiftKey && selectedNodeIds.length === 1) {
+      else if (e.key === 'Tab' && !e.shiftKey && selectedNodeIds.length === 1) {
         e.preventDefault();
+        window.keyEventHandled = true;
+        console.log('MindMap组件: 处理Tab键');
         addChildNodeThrottled(selectedNodeIds[0]);
       }
       
       // Shift+Tab添加兄弟节点
-      if (e.key === 'Tab' && e.shiftKey && selectedNodeIds.length === 1) {
+      else if (e.key === 'Tab' && e.shiftKey && selectedNodeIds.length === 1) {
         e.preventDefault();
+        window.keyEventHandled = true;
+        console.log('MindMap组件: 处理Shift+Tab键');
         addSiblingNodeThrottled(selectedNodeIds[0]);
+      }
+      
+      // F2或Ctrl+E编辑节点
+      else if ((e.key === 'F2' || (isModifierKeyPressed && e.key.toLowerCase() === 'e' && !e.shiftKey)) && selectedNodeIds.length === 1) {
+        e.preventDefault();
+        window.keyEventHandled = true;
+        console.log(`MindMap组件: 处理${e.key === 'F2' ? 'F2' : 'Ctrl+E'}键 - 编辑节点`);
+        const { setEditingNodeId } = useMindMapStore.getState();
+        setEditingNodeId(selectedNodeIds[0]);
       }
       
       // 重置处理状态
@@ -466,13 +530,16 @@ const MindMap: React.FC = () => {
     };
     
     // 移除旧的事件监听器
-    document.removeEventListener('keydown', globalKeyDownHandler);
+    document.removeEventListener('keydown', globalKeyDownHandler, true);
     
-    // 添加新的事件监听器
-    document.addEventListener('keydown', globalKeyDownHandler);
+    // 添加新的事件监听器 - 在捕获阶段，保证事件处理顺序一致
+    document.addEventListener('keydown', globalKeyDownHandler, true);
+    
+    console.log('已安装MindMap快捷键处理函数，选中节点数:', selectedNodeIds.length);
     
     return () => {
-      document.removeEventListener('keydown', globalKeyDownHandler);
+      document.removeEventListener('keydown', globalKeyDownHandler, true);
+      console.log('已移除MindMap快捷键处理函数');
     };
   }, [selectedNodeIds]);
   
@@ -563,7 +630,7 @@ const MindMap: React.FC = () => {
       isDragging: draggingState.isDragging,
       nodeId: draggingState.nodeId,
       startPosition: draggingState.startPosition ? { ...draggingState.startPosition } : null,
-      currentPosition: { x: draggingState.currentPosition.x, y: draggingState.currentPosition.y },
+      currentPosition: draggingState.currentPosition ? { ...draggingState.currentPosition } : null,
       snapTarget: draggingState.snapTarget ? {
         nodeId: draggingState.snapTarget.nodeId,
         distance: draggingState.snapTarget.distance
@@ -571,7 +638,7 @@ const MindMap: React.FC = () => {
     };
     
     // 如果有吸附目标，执行吸附动画
-    if (currentDragState.snapTarget) {
+    if (currentDragState.snapTarget && currentDragState.currentPosition) {
       const targetNode = nodes.find(n => n.id === currentDragState.snapTarget!.nodeId);
       
       if (targetNode && targetNode.position) {
@@ -598,11 +665,15 @@ const MindMap: React.FC = () => {
       } else {
         console.warn('吸附失败: 找不到目标节点或位置为空');
         // 没找到目标节点或位置信息，直接保存当前位置
-        saveNodePositionOnly(currentDragState.nodeId, currentDragState.currentPosition);
+        if (currentDragState.nodeId && currentDragState.currentPosition) {
+          saveNodePositionOnly(currentDragState.nodeId, currentDragState.currentPosition);
+        }
       }
     } else {
       // 没有吸附目标，直接保存位置
-      saveNodePositionOnly(currentDragState.nodeId, currentDragState.currentPosition);
+      if (currentDragState.nodeId && currentDragState.currentPosition) {
+        saveNodePositionOnly(currentDragState.nodeId, currentDragState.currentPosition);
+      }
     }
     
     // 重置拖拽和吸附状态

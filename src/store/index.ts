@@ -223,6 +223,10 @@ const loadTemplates = async (): Promise<{ id: string, name: string, nodes: MindN
   
   try {
     console.log('打开IndexedDB以加载模板列表...');
+    if (typeof window !== 'undefined' && window.debugTemplates) {
+      console.log('🔍 模板调试: 开始加载模板列表');
+    }
+    
     db = await openDB();
     
     // 创建一个只读事务
@@ -239,8 +243,16 @@ const loadTemplates = async (): Promise<{ id: string, name: string, nodes: MindN
       request.onsuccess = () => {
         const templates = request.result || [];
         console.log(`成功加载${templates.length}个模板`);
+        
+        if (typeof window !== 'undefined' && window.debugTemplates) {
+          console.log(`🔍 模板调试: 成功加载${templates.length}个模板`);
+        }
+        
         templates.forEach(template => {
           console.log(`- 模板: ${template.name}, ID: ${template.id}`);
+          if (typeof window !== 'undefined' && window.debugTemplates) {
+            console.log(`🔍 模板: ${template.name}, ID: ${template.id}, 节点数: ${template.nodes.length}`);
+          }
         });
         resolve(templates);
       };
@@ -982,6 +994,10 @@ const useMindMapStore = create<MindMapState>((set, get) => ({
   // 从模板创建思维导图
   createFromTemplate: async (templateId: string) => {
     try {
+      if (typeof window !== 'undefined' && window.debugTemplates) {
+        console.log(`🔍 模板调试: 开始从模板创建思维导图, 模板ID: ${templateId}`);
+      }
+      
       const db = await openDB();
       const transaction = db.transaction(TEMPLATES_STORE, 'readonly');
       const store = transaction.objectStore(TEMPLATES_STORE);
@@ -992,6 +1008,16 @@ const useMindMapStore = create<MindMapState>((set, get) => ({
         request.onsuccess = () => {
           if (request.result) {
             const { nodes, relationships } = request.result;
+            
+            if (typeof window !== 'undefined' && window.debugTemplates) {
+              console.log(`🔍 模板调试: 成功获取模板数据`, {
+                模板ID: templateId,
+                模板名称: request.result.name,
+                节点数量: nodes.length,
+                关系数量: relationships.length
+              });
+            }
+            
             const newMapId = uuidv4();
             
             set({ 
@@ -1006,9 +1032,19 @@ const useMindMapStore = create<MindMapState>((set, get) => ({
             // 自动保存到IndexedDB
             get().saveToLocalStorage();
             console.log(`已从模板创建思维导图:`, templateId);
+            
+            if (typeof window !== 'undefined' && window.debugTemplates) {
+              console.log(`🔍 模板调试: 思维导图创建完成，已设置新的ID: ${newMapId}`);
+            }
+            
             resolve(true);
           } else {
             console.error('未找到指定模板:', templateId);
+            
+            if (typeof window !== 'undefined' && window.debugTemplates) {
+              console.error(`❌ 模板调试: 未找到指定模板`, templateId);
+            }
+            
             resolve(false);
           }
         };
