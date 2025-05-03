@@ -116,6 +116,7 @@ const NodeContent = styled.div<{ style: NodeStyle; isEditing: boolean }>`
   word-break: break-word;
   outline: ${props => props.isEditing ? '2px solid #1890ff' : 'none'};
   padding: 2px;
+  user-select: ${props => props.isEditing ? 'text' : 'none'};
 `;
 
 // 编辑输入框样式
@@ -128,6 +129,7 @@ const EditInput = styled(Input)`
   border: none;
   outline: 2px solid #1890ff;
   padding: 2px;
+  user-select: text;
   
   &:focus {
     box-shadow: none;

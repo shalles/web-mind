@@ -88,6 +88,7 @@ const NodeContent = styled.div`
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  user-select: none;
 `;
 
 // 节点路径

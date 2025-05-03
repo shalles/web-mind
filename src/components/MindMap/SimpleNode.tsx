@@ -139,7 +139,8 @@ const SimpleNode: React.FC<NodeProps> = ({ node, isSelected, onClick }) => {
     width: '100%',
     wordBreak: 'break-word',
     outline: editingNodeId === node.id ? '2px solid #1890ff' : 'none',
-    padding: '2px'
+    padding: '2px',
+    userSelect: editingNodeId === node.id ? 'text' : 'none'
   };
   
   // 图片容器样式
@@ -238,6 +239,7 @@ const SimpleNode: React.FC<NodeProps> = ({ node, isSelected, onClick }) => {
             onChange={(e) => setTempContent(e.target.value)}
             onBlur={handleInputSubmit}
             onKeyDown={handleInputKeyDown}
+            style={{ userSelect: 'text' }}
           />
         ) : (
           node.content || '空节点'
