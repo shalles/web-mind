@@ -1,5 +1,7 @@
 # WebXmind - 网页版思维导图工具
 
+![产品图](docs/prd.png)
+
 基于React + TypeScript + Vite + Zustand开发的思维导图工具，支持节点编辑、样式调整、关系连线和节点引用等功能。
 
 ## 功能
