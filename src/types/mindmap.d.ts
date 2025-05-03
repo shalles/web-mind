@@ -74,3 +74,13 @@ export interface Relationship {
 }
 
 // 思维导图状态接口已移至 store/index.ts 文件中
+
+// 背景设置类型
+export interface BackgroundConfig {
+  type: 'color' | 'image';   // 背景类型：纯色或图片
+  color?: string;            // 背景颜色
+  imageUrl?: string;         // 背景图片URL
+  opacity?: number;          // 背景不透明度 (0-1)
+  size?: 'cover' | 'contain' | 'auto' | string;  // 背景图片大小
+  repeat?: 'no-repeat' | 'repeat' | 'repeat-x' | 'repeat-y';  // 背景重复方式
+}

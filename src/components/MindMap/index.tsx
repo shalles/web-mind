@@ -7,7 +7,7 @@ import Toolbar from '../Toolbar';
 import { addDebugNode } from '@/core/operations/node-operations';
 import NodeReferenceMenu from './NodeReferenceMenu';
 import { Input, InputRef } from 'antd';
-import { NodePosition } from '@/types/mindmap';
+import { NodePosition, BackgroundConfig } from '@/types/mindmap';
 import { 
   findClosestNode, 
   calculateAnimatedPosition, 
@@ -71,12 +71,34 @@ type ContextMenuInfo = {
 };
 
 // SVG容器样式
-const SVGContainer = styled.div`
+const SVGContainer = styled.div<{
+  background?: BackgroundConfig;
+}>`
   width: 100%;
   height: 100%;
-  background-color: #f5f5f5;
   overflow: hidden;
   position: relative;
+  
+  ${props => {
+    if (!props.background) return 'background-color: #f5f5f5;';
+    
+    if (props.background.type === 'color') {
+      return `
+        background-color: ${props.background.color || '#f5f5f5'};
+        opacity: ${props.background.opacity !== undefined ? props.background.opacity : 1};
+      `;
+    } else if (props.background.type === 'image' && props.background.imageUrl) {
+      return `
+        background-image: url(${props.background.imageUrl});
+        background-size: ${props.background.size || 'cover'};
+        background-repeat: ${props.background.repeat || 'no-repeat'};
+        background-position: center;
+        opacity: ${props.background.opacity !== undefined ? props.background.opacity : 1};
+      `;
+    }
+    
+    return 'background-color: #f5f5f5;';
+  }}
 `;
 
 // 思维导图SVG
@@ -133,7 +155,8 @@ const MindMap: React.FC = () => {
     setZoom,
     initialize,
     relationships,
-    setNodes
+    setNodes,
+    background
   } = useMindMapStore();
   
   // SVG容器引用
@@ -1029,7 +1052,7 @@ const MindMap: React.FC = () => {
   }, [draggingState.isDragging, draggingState.nodeId]);
   
   return (
-    <SVGContainer className="mindmap-container">
+    <SVGContainer className="mindmap-container" background={background}>
       <ToolbarWrapper>
         <Toolbar />
       </ToolbarWrapper>

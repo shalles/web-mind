@@ -1,6 +1,6 @@
-import React, { useRef, useState, useCallback } from 'react';
+import React, { useRef, useState, useCallback, useEffect } from 'react';
 import styled from 'styled-components';
-import { Button, Tooltip, Divider, message, ColorPicker, Modal, Input, List, Typography, Tag, Popconfirm } from 'antd';
+import { Button, Tooltip, Divider, message, ColorPicker, Modal, Input, List, Typography, Tag, Popconfirm, Radio, Slider } from 'antd';
 import {
   PlusOutlined,
   DeleteOutlined,
@@ -16,11 +16,14 @@ import {
   FileOutlined,
   SnippetsOutlined,
   AppstoreOutlined,
-  ExclamationCircleOutlined
+  ExclamationCircleOutlined,
+  PictureOutlined,
+  UploadOutlined
 } from '@ant-design/icons';
 import { FileImageOutlined, ImportOutlined } from '@ant-design/icons';
 import useMindMapStore from '@/store';
 import { findNodeById } from '@/core/operations/node-operations';
+import { BackgroundConfig } from '@/types/mindmap';
 import html2canvas from 'html2canvas';
 
 // 检测操作系统
@@ -60,6 +63,162 @@ declare global {
     debugTemplates?: boolean;
   }
 }
+
+// 背景设置按钮和对话框
+const BackgroundButton: React.FC = () => {
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [colorBackground, setColorBackground] = useState('#f5f5f5');
+  const [bgImageUrl, setBgImageUrl] = useState('');
+  const [bgType, setBgType] = useState<'color' | 'image'>('color');
+  const [opacity, setOpacity] = useState(1);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const { background, setBackground } = useMindMapStore();
+  
+  // 初始化背景设置
+  useEffect(() => {
+    if (background) {
+      setBgType(background.type);
+      if (background.color) setColorBackground(background.color);
+      if (background.imageUrl) setBgImageUrl(background.imageUrl);
+      if (background.opacity !== undefined) setOpacity(background.opacity);
+    }
+  }, [background]);
+  
+  // 应用背景设置
+  const applyBackgroundSettings = () => {
+    const newBackground: BackgroundConfig = {
+      type: bgType,
+      opacity
+    };
+    
+    if (bgType === 'color') {
+      newBackground.color = colorBackground;
+    } else {
+      newBackground.imageUrl = bgImageUrl;
+      newBackground.size = 'cover';
+      newBackground.repeat = 'no-repeat';
+    }
+    
+    setBackground(newBackground);
+    setIsModalVisible(false);
+    message.success('背景设置已应用');
+  };
+  
+  // 处理本地图片上传
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // 验证文件类型
+    if (!file.type.startsWith('image/')) {
+      message.error('请选择图片文件');
+      return;
+    }
+    
+    // 生成本地URL
+    const localUrl = URL.createObjectURL(file);
+    setBgImageUrl(localUrl);
+    
+    // 清空文件输入，以便可以再次选择同一文件
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+  
+  return (
+    <>
+      <Button
+        type="text"
+        icon={<PictureOutlined style={{ color: '#13c2c2' }} />}
+        onClick={() => setIsModalVisible(true)}
+      />
+      
+      <Modal
+        title="设置思维导图背景"
+        open={isModalVisible}
+        onOk={applyBackgroundSettings}
+        onCancel={() => setIsModalVisible(false)}
+        width={500}
+      >
+        <div style={{ marginBottom: 20 }}>
+          <Radio.Group value={bgType} onChange={e => setBgType(e.target.value)}>
+            <Radio.Button value="color">纯色背景</Radio.Button>
+            <Radio.Button value="image">图片背景</Radio.Button>
+          </Radio.Group>
+        </div>
+        
+        {bgType === 'color' ? (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ marginBottom: 8 }}>选择背景颜色:</div>
+            <ColorPicker
+              value={colorBackground}
+              onChange={color => setColorBackground(color.toHexString())}
+              showText
+            />
+          </div>
+        ) : (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ marginBottom: 8 }}>图片设置:</div>
+            <Input 
+              placeholder="输入图片URL" 
+              value={bgImageUrl}
+              onChange={e => setBgImageUrl(e.target.value)}
+              suffix={<PictureOutlined />}
+              style={{ marginBottom: 8 }}
+            />
+            
+            <div style={{ marginBottom: 8 }}>
+              <Button 
+                icon={<UploadOutlined />} 
+                onClick={() => fileInputRef.current?.click()}
+              >
+                上传本地图片
+              </Button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileUpload}
+                accept="image/*"
+                style={{ display: 'none' }}
+              />
+            </div>
+            
+            {bgImageUrl && (
+              <div style={{ marginTop: 8, textAlign: 'center' }}>
+                <img 
+                  src={bgImageUrl} 
+                  alt="背景预览" 
+                  style={{ 
+                    maxWidth: '100%', 
+                    maxHeight: '150px', 
+                    objectFit: 'contain',
+                    border: '1px solid #d9d9d9',
+                    borderRadius: '4px',
+                    padding: '4px'
+                  }} 
+                  onError={() => message.error('图片加载失败，请检查URL是否有效')}
+                />
+              </div>
+            )}
+          </div>
+        )}
+        
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 8 }}>背景不透明度: {opacity * 100}%</div>
+          <Slider
+            min={0}
+            max={1}
+            step={0.05}
+            value={opacity}
+            onChange={value => setOpacity(value as number)}
+            tooltip={{ formatter: value => `${Math.round((value as number) * 100)}%` }}
+          />
+        </div>
+      </Modal>
+    </>
+  );
+};
 
 const Toolbar: React.FC = () => {
   // 状态
@@ -880,6 +1039,9 @@ const Toolbar: React.FC = () => {
               disabled={!hasSelection}
             />
           </ColorPicker>
+        </Tooltip>
+        <Tooltip title="设置思维导图背景">
+          <BackgroundButton />
         </Tooltip>
       </ToolbarGroup>
       

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { MindNode, NodeStyle, ConnectionStyle, NodeIcon, NodeImage, Relationship } from '@/types/mindmap';
+import { MindNode, NodeStyle, ConnectionStyle, NodeIcon, NodeImage, Relationship, BackgroundConfig } from '@/types/mindmap';
 import { createInitialMindMap, flattenNodes, createNode } from '@/core/models/mindmap';
 import { calculateMindMapLayout } from '@/core/layouts/mindmap-layout';
 import {
@@ -54,7 +54,7 @@ const openDB = (): Promise<IDBDatabase> => {
 };
 
 // 保存思维导图到IndexedDB
-const saveMindMapToDB = async (id: string, data: { nodes: MindNode[], relationships: Relationship[] }): Promise<void> => {
+const saveMindMapToDB = async (id: string, data: { nodes: MindNode[], relationships: Relationship[], background: BackgroundConfig }): Promise<void> => {
   try {
     const db = await openDB();
     const transaction = db.transaction(STORE_NAME, 'readwrite');
@@ -93,7 +93,7 @@ const saveMindMapToDB = async (id: string, data: { nodes: MindNode[], relationsh
 };
 
 // 从IndexedDB加载思维导图
-const loadMindMapFromDB = async (id: string): Promise<{ nodes: MindNode[], relationships: Relationship[] } | null> => {
+const loadMindMapFromDB = async (id: string): Promise<{ nodes: MindNode[], relationships: Relationship[], background: BackgroundConfig } | null> => {
   try {
     const db = await openDB();
     const transaction = db.transaction(STORE_NAME, 'readonly');
@@ -104,8 +104,8 @@ const loadMindMapFromDB = async (id: string): Promise<{ nodes: MindNode[], relat
       
       request.onsuccess = () => {
         if (request.result) {
-          const { nodes, relationships } = request.result;
-          resolve({ nodes, relationships });
+          const { nodes, relationships, background } = request.result;
+          resolve({ nodes, relationships, background });
         } else {
           resolve(null);
         }
@@ -354,6 +354,13 @@ const deleteTemplateFromDb = async (templateId: string): Promise<boolean> => {
   }
 };
 
+// 默认背景配置
+const DEFAULT_BACKGROUND: BackgroundConfig = {
+  type: 'color',
+  color: '#f5f5f5',
+  opacity: 1
+};
+
 export interface MindMapState {
   // 数据状态
   nodes: MindNode[];
@@ -364,6 +371,7 @@ export interface MindMapState {
   zoom: number;
   connectionStyle: ConnectionStyle;
   relationships: Relationship[];
+  background: BackgroundConfig; // 背景配置
   undoStack: {
     nodes: MindNode[];
     relationships: Relationship[];
@@ -382,6 +390,7 @@ export interface MindMapState {
   setTheme: (theme: string) => void;
   setZoom: (zoom: number) => void;
   setConnectionStyle: (style: ConnectionStyle) => void;
+  setBackground: (background: Partial<BackgroundConfig>) => void; // 设置背景
   
   // 内部操作
   executeWithHistory: (operation: (state: { 
@@ -456,6 +465,7 @@ const useMindMapStore = create<MindMapState>((set, get) => ({
   zoom: 1,
   connectionStyle: DEFAULT_CONNECTION_STYLE,
   relationships: [],
+  background: DEFAULT_BACKGROUND, // 默认背景
   undoStack: [],
   redoStack: [],
   isAddingNode: false,
@@ -468,6 +478,7 @@ const useMindMapStore = create<MindMapState>((set, get) => ({
   setTheme: (theme) => set({ theme }),
   setZoom: (zoom) => set({ zoom }),
   setConnectionStyle: (style) => set({ connectionStyle: { ...get().connectionStyle, ...style } }),
+  setBackground: (background) => set({ background: { ...get().background, ...background } }),
   
   // 记录历史状态的操作封装
   executeWithHistory: (operation) => {
@@ -840,8 +851,8 @@ const useMindMapStore = create<MindMapState>((set, get) => ({
   
   // 本地存储相关方法
   saveToLocalStorage: async () => {
-    const { nodes, relationships, currentMapId } = get();
-    await saveMindMapToDB(currentMapId, { nodes, relationships });
+    const { nodes, relationships, currentMapId, background } = get();
+    await saveMindMapToDB(currentMapId, { nodes, relationships, background });
   },
   
   loadFromLocalStorage: async () => {
@@ -864,6 +875,7 @@ const useMindMapStore = create<MindMapState>((set, get) => ({
       set({ 
         nodes: mapData.nodes, 
         relationships: mapData.relationships,
+        background: mapData.background || DEFAULT_BACKGROUND, // 加载背景配置，如果不存在则使用默认值
         currentMapId: currentId,
         undoStack: [],
         redoStack: []
