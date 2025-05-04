@@ -432,7 +432,7 @@ export interface MindMapState {
 const DEFAULT_CONNECTION_STYLE: ConnectionStyle = {
   lineColor: '#c0c0c0',
   lineWidth: 1.5,
-  lineStyle: 'curved',
+  lineStyle: 'orthogonalRounded',
   lineType: 'solid',
 };
 

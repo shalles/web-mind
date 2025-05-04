@@ -60,7 +60,7 @@ export interface MindNode {
 export interface ConnectionStyle {
   lineColor?: string;
   lineWidth?: number;
-  lineStyle?: 'straight' | 'curved' | 'orthogonal';
+  lineStyle?: 'straight' | 'curved' | 'orthogonal' | 'orthogonalRounded';
   lineType?: 'solid' | 'dashed' | 'dotted';
 }
 

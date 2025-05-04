@@ -180,7 +180,8 @@ const RelationshipLine: React.FC<RelationshipLineProps> = ({ relationship, sourc
           options={[
             { value: 'straight', label: '直线' },
             { value: 'curved', label: '曲线' },
-            { value: 'orthogonal', label: '正交线' }
+            { value: 'orthogonal', label: '正交线' },
+            { value: 'orthogonalRounded', label: '带圆角的正交线' }
           ]}
         />
       </div>
@@ -288,7 +289,35 @@ const generatePathData = (
     
     case 'orthogonal': {
       const midX = (sourceX + targetX) / 2;
-      return `M ${sourceX} ${sourceY} L ${midX} ${sourceY} L ${midX} ${targetY} L ${targetX} ${targetY}`;
+      return `M ${sourceX} ${sourceY} H ${midX} V ${targetY} H ${targetX}`;
+    }
+    
+    case 'orthogonalRounded': {
+      const midX = (sourceX + targetX) / 2;
+      const radius = 10; // 圆角半径
+      
+      // 如果垂直距离很小，直接使用水平线连接
+      if (Math.abs(sourceY - targetY) < radius * 2) {
+        return `M ${sourceX} ${sourceY} H ${targetX}`;
+      }
+      
+      // 垂直方向标识 (上或下)
+      const verticalDirection = sourceY > targetY ? -1 : 1;
+      
+      // 计算拐角点坐标
+      const corner1Y = sourceY;
+      const corner1X = midX;
+      const corner2Y = targetY; 
+      const corner2X = midX;
+      
+      return `
+        M ${sourceX} ${sourceY}
+        H ${corner1X - radius * Math.sign(corner1X - sourceX)}
+        A ${radius} ${radius} 0 0 ${verticalDirection > 0 ? 1 : 0} ${corner1X} ${corner1Y + radius * verticalDirection}
+        V ${corner2Y - radius * verticalDirection}
+        A ${radius} ${radius} 0 0 ${midX < targetX ? 1 : 0} ${corner2X + radius * Math.sign(targetX - corner2X)} ${corner2Y}
+        H ${targetX}
+      `;
     }
     
     case 'curved':
