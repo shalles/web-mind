@@ -146,7 +146,7 @@ const loadCurrentMapId = async (): Promise<string | null> => {
 };
 
 // 保存模板到IndexedDB
-const saveTemplateToDb = async (template: { id: string, name: string, nodes: MindNode[], relationships: Relationship[] }): Promise<void> => {
+const saveTemplateToDb = async (template: { id: string, name: string, nodes: MindNode[], relationships: Relationship[], background?: BackgroundConfig }): Promise<void> => {
   let db: IDBDatabase | null = null;
   
   try {
@@ -218,66 +218,46 @@ const saveTemplateToDb = async (template: { id: string, name: string, nodes: Min
 };
 
 // 加载所有模板
-const loadTemplates = async (): Promise<{ id: string, name: string, nodes: MindNode[], relationships: Relationship[] }[]> => {
-  let db: IDBDatabase | null = null;
-  
+const loadTemplates = async (): Promise<{ id: string, name: string, nodes: MindNode[], relationships: Relationship[], background?: BackgroundConfig }[]> => {
   try {
     console.log('打开IndexedDB以加载模板列表...');
-    if (typeof window !== 'undefined' && window.debugTemplates) {
-      console.log('🔍 模板调试: 开始加载模板列表');
-    }
+    const db = await openDB();
     
-    db = await openDB();
-    
-    // 创建一个只读事务
-    console.log('创建读取事务...');
+    console.log('创建只读事务...');
     const transaction = db.transaction(TEMPLATES_STORE, 'readonly');
-    
-    // 获取对象存储
     const store = transaction.objectStore(TEMPLATES_STORE);
     
+    // 使用getAll获取所有模板
     return new Promise((resolve, reject) => {
-      console.log('执行getAll操作...');
       const request = store.getAll();
       
       request.onsuccess = () => {
         const templates = request.result || [];
-        console.log(`成功加载${templates.length}个模板`);
+        console.log(`成功加载了${templates.length}个模板`);
         
-        if (typeof window !== 'undefined' && window.debugTemplates) {
-          console.log(`🔍 模板调试: 成功加载${templates.length}个模板`);
-        }
+        // 映射结果数组，包含必要的字段
+        const mappedTemplates = templates.map(template => ({
+          id: template.id,
+          name: template.name,
+          nodes: template.nodes,
+          relationships: template.relationships,
+          background: template.background
+        }));
         
-        templates.forEach(template => {
-          console.log(`- 模板: ${template.name}, ID: ${template.id}`);
-          if (typeof window !== 'undefined' && window.debugTemplates) {
-            console.log(`🔍 模板: ${template.name}, ID: ${template.id}, 节点数: ${template.nodes.length}`);
-          }
-        });
-        resolve(templates);
+        resolve(mappedTemplates);
       };
       
       request.onerror = (event) => {
         console.error('加载模板列表失败:', event);
-        reject(new Error('加载模板列表失败'));
+        reject(event);
       };
       
-      // 设置事务完成、错误和中止的处理程序
       transaction.oncomplete = () => {
-        console.log('加载模板列表事务完成');
-      };
-      
-      transaction.onerror = (event) => {
-        console.error('加载模板列表事务出错:', event);
-      };
-      
-      transaction.onabort = (event) => {
-        console.error('加载模板列表事务被中止:', event);
+        db.close();
       };
     });
   } catch (error) {
     console.error('加载模板列表过程中发生错误:', error);
-    if (db) db.close();
     return [];
   }
 };
@@ -440,7 +420,7 @@ export interface MindMapState {
   
   // 模板功能
   saveAsTemplate: (name: string) => Promise<string>;
-  loadTemplates: () => Promise<{ id: string, name: string }[]>;
+  loadTemplates: () => Promise<{ id: string, name: string, background?: BackgroundConfig }[]>;
   createFromTemplate: (templateId: string) => Promise<boolean>;
   createDefaultTemplates: () => Promise<void>;
   deleteTemplate: (templateId: string) => Promise<boolean>;
@@ -805,8 +785,8 @@ const useMindMapStore = create<MindMapState>((set, get) => ({
   
   // 导出为JSON
   exportToJSON: () => {
-    const { nodes, relationships } = get();
-    return JSON.stringify({ nodes, relationships });
+    const { nodes, relationships, background } = get();
+    return JSON.stringify({ nodes, relationships, background });
   },
   
   // 导入JSON数据
@@ -824,6 +804,7 @@ const useMindMapStore = create<MindMapState>((set, get) => ({
       set({ 
         nodes: data.nodes, 
         relationships: data.relationships || [],
+        background: data.background || DEFAULT_BACKGROUND,
         undoStack: [],
         redoStack: []
       });
@@ -834,6 +815,7 @@ const useMindMapStore = create<MindMapState>((set, get) => ({
       console.log('成功导入思维导图数据');
       console.log('节点数量:', data.nodes.length);
       console.log('关系数量:', (data.relationships || []).length);
+      if (data.background) console.log('背景设置: 类型-', data.background.type);
       
       return true;
     } catch (error) {
@@ -966,14 +948,15 @@ const useMindMapStore = create<MindMapState>((set, get) => ({
   saveAsTemplate: async (name: string) => {
     try {
       console.log('开始保存模板:', name);
-      const { nodes, relationships } = get();
+      const { nodes, relationships, background } = get();
       const templateId = uuidv4();
       
       console.log('准备保存的模板数据:', {
         id: templateId,
         name,
         nodesCount: nodes.length,
-        relationshipsCount: relationships.length
+        relationshipsCount: relationships.length,
+        backgroundType: background.type
       });
       
       // 保存模板数据
@@ -981,7 +964,8 @@ const useMindMapStore = create<MindMapState>((set, get) => ({
         id: templateId,
         name,
         nodes,
-        relationships
+        relationships,
+        background
       });
       
       console.log(`模板保存成功: ${name}，ID: ${templateId}`);
@@ -996,7 +980,7 @@ const useMindMapStore = create<MindMapState>((set, get) => ({
   loadTemplates: async () => {
     try {
       const templates = await loadTemplates();
-      return templates.map(({ id, name }) => ({ id, name }));
+      return templates.map(({ id, name, background }) => ({ id, name, background }));
     } catch (error) {
       console.error('加载模板列表失败:', error);
       return [];
@@ -1019,14 +1003,15 @@ const useMindMapStore = create<MindMapState>((set, get) => ({
         
         request.onsuccess = () => {
           if (request.result) {
-            const { nodes, relationships } = request.result;
+            const { nodes, relationships, background } = request.result;
             
             if (typeof window !== 'undefined' && window.debugTemplates) {
               console.log(`🔍 模板调试: 成功获取模板数据`, {
                 模板ID: templateId,
                 模板名称: request.result.name,
                 节点数量: nodes.length,
-                关系数量: relationships.length
+                关系数量: relationships.length,
+                背景设置: background ? background.type : '默认'
               });
             }
             
@@ -1035,6 +1020,7 @@ const useMindMapStore = create<MindMapState>((set, get) => ({
             set({ 
               nodes, 
               relationships,
+              background: background || DEFAULT_BACKGROUND,
               currentMapId: newMapId,
               undoStack: [],
               redoStack: [],
@@ -1098,7 +1084,8 @@ const useMindMapStore = create<MindMapState>((set, get) => ({
               id: defaultTemplateId,
               name: '示例思维导图',
               nodes: flatNodes,
-              relationships: []
+              relationships: [],
+              background: DEFAULT_BACKGROUND
             });
             
             console.log('默认示例模板创建完成');
