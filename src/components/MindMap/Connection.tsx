@@ -54,32 +54,22 @@ const generateConnectionPath = (sourceNode: MindNode, targetNode: MindNode): str
     targetPointX = targetX + targetWidth / 2;
   }
   
-  // 使用带圆角的三段式连线
-  const radius = 10; // 圆角半径
-  
   // 水平中间点
   const midX = (sourceX + targetX) / 2;
   
   // 如果垂直距离很小，直接使用水平线连接
-  if (Math.abs(sourceY - targetY) < radius * 2) {
+  if (Math.abs(sourceY - targetY) < 10) {
     return `M ${sourcePointX} ${sourcePointY} H ${targetPointX}`;
   }
   
-  // 垂直方向标识 (上或下)
-  const verticalDirection = sourceY > targetY ? -1 : 1;
-  
   // 计算拐角点坐标
-  const corner1Y = sourceY;
   const corner1X = midX;
   const corner2Y = targetY; 
-  const corner2X = midX;
   
   return `
     M ${sourcePointX} ${sourcePointY}
-    H ${corner1X - radius * Math.sign(corner1X - sourcePointX)}
-    A ${radius} ${radius} 0 0 ${verticalDirection > 0 ? 1 : 0} ${corner1X} ${corner1Y + radius * verticalDirection}
-    V ${corner2Y - radius * verticalDirection}
-    A ${radius} ${radius} 0 0 ${midX < targetPointX ? 1 : 0} ${corner2X + radius * Math.sign(targetPointX - corner2X)} ${corner2Y}
+    H ${corner1X}
+    V ${corner2Y}
     H ${targetPointX}
   `;
 };
