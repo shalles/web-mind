@@ -31,7 +31,13 @@ const NodeContainer = styled.div<{
   node: MindNode;
 }>`
   position: absolute;
-  transform: ${props => `translate(${props.node?.position?.x || 0}px, ${props.node?.position?.y || 0}px)`};
+  transform: ${props => {
+    const x = props.node?.position?.x || 0;
+    const y = props.node?.position?.y || 0;
+    // 如果节点有子节点，向上偏移15px以使其在视觉上居中
+    const yOffset = props.hasChildren && props.isExpanded ? -15 : 0;
+    return `translate(${x}px, ${y + yOffset}px)`;
+  }};
   background-color: ${props => props.style.backgroundColor || '#ffffff'};
   border: ${props => 
     `${props.style.borderWidth || 1}px ${props.style.borderStyle || 'solid'} ${

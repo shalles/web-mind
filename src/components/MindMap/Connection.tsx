@@ -23,53 +23,40 @@ const Connection: React.FC<ConnectionProps> = ({ sourceNode, targetNode }) => {
 
 // 生成连接线路径
 const generateConnectionPath = (sourceNode: MindNode, targetNode: MindNode): string => {
+  // 获取节点位置
   const sourceX = sourceNode.position?.x || 0;
   const sourceY = sourceNode.position?.y || 0;
   const targetX = targetNode.position?.x || 0;
   const targetY = targetNode.position?.y || 0;
   
-  // 源节点的宽度
+  // 节点尺寸 - 用于计算连接点
   const sourceWidth = sourceNode.style.width || 120;
-  
-  // 目标节点的宽度
   const targetWidth = targetNode.style.width || 120;
   
-  // 计算连接点（源节点的右侧中心和目标节点的左侧中心）
+  // 确定方向
   const direction = targetNode.direction || 'right';
   
-  let sourcePointX: number;
-  let sourcePointY: number;
-  let targetPointX: number;
+  // 计算实际连接点
+  let sourcePointX: number, targetPointX: number;
   
-  // 根据方向确定连接点
   if (direction === 'right') {
-    // 源节点右侧，目标节点左侧
+    // 右侧连接 - 源节点右边，目标节点左边
     sourcePointX = sourceX + sourceWidth / 2;
-    sourcePointY = sourceY;
     targetPointX = targetX - targetWidth / 2;
   } else {
-    // 源节点左侧，目标节点右侧
+    // 左侧连接 - 源节点左边，目标节点右边
     sourcePointX = sourceX - sourceWidth / 2;
-    sourcePointY = sourceY;
     targetPointX = targetX + targetWidth / 2;
   }
   
-  // 水平中间点
-  const midX = (sourceX + targetX) / 2;
-  
-  // 如果垂直距离很小，直接使用水平线连接
-  if (Math.abs(sourceY - targetY) < 10) {
-    return `M ${sourcePointX} ${sourcePointY} H ${targetPointX}`;
-  }
-  
-  // 计算拐角点坐标
-  const corner1X = midX;
-  const corner2Y = targetY; 
+  // 使用三段式直角连线，强制使用节点本身的Y坐标
+  // 这确保连线始终从节点的中心点出发，而不受视觉位置影响
+  const turnX = (sourcePointX + targetPointX) / 2;
   
   return `
-    M ${sourcePointX} ${sourcePointY}
-    H ${corner1X}
-    V ${corner2Y}
+    M ${sourcePointX} ${sourceY}
+    H ${turnX}
+    V ${targetY}
     H ${targetPointX}
   `;
 };
